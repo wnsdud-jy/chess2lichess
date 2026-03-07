@@ -2,15 +2,16 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     prelude::*,
-    text::Line,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph, Wrap},
 };
 use tokio::{fs, sync::mpsc};
 
@@ -33,18 +34,58 @@ struct TuiState {
     processing: bool,
     final_url: Option<String>,
     last_result: Option<AnalysisResult>,
+    message: String,
+    tick: u64,
 }
 
 impl TuiState {
     fn push_log(&mut self, line: impl Into<String>) {
-        self.logs.push(line.into());
+        let line = line.into();
+        self.message = line.clone();
+        self.logs.push(line);
         if self.logs.len() > 20 {
             let _ = self.logs.remove(0);
         }
     }
 
+    fn reset_for_next_input(&mut self) {
+        self.input.clear();
+    }
+
     fn pgn_preview(pgn: &str) -> String {
         pgn.lines().take(7).collect::<Vec<_>>().join("\n")
+    }
+}
+
+fn style_palette() -> (Style, Style, Style, Style, Color) {
+    let panel_bg = Color::Rgb(23, 26, 31);
+    let panel = Style::default().fg(Color::White).bg(panel_bg);
+    let muted = Style::default()
+        .fg(Color::Rgb(174, 181, 190))
+        .bg(panel_bg)
+        .add_modifier(Modifier::DIM);
+    let success = Style::default()
+        .fg(Color::Rgb(118, 255, 150))
+        .bg(panel_bg)
+        .add_modifier(Modifier::BOLD);
+    let warn = Style::default()
+        .fg(Color::Rgb(255, 214, 102))
+        .bg(panel_bg)
+        .add_modifier(Modifier::BOLD);
+    let accent = Color::Rgb(93, 192, 255);
+    (panel, muted, success, warn, accent)
+}
+
+fn spinner(step: u64) -> &'static str {
+    const FRAMES: [&str; 4] = ["|", "/", "-", "\\"];
+    FRAMES[(step % FRAMES.len() as u64) as usize]
+}
+
+fn clamp_right(value: &str, max: usize) -> String {
+    if value.chars().count() <= max {
+        value.to_string()
+    } else {
+        value.chars().take(max).collect::<String>()
     }
 }
 
@@ -72,23 +113,41 @@ pub async fn run_tui() -> Result<()> {
                             state.final_url = Some(res.final_analysis_url());
                             state.pgn_preview = TuiState::pgn_preview(&res.pgn);
                             state.last_result = Some(res);
+                            state.push_log("Done. Enter next URL, or q to exit.");
                         }
                         Err(err) => {
                             state.final_url = None;
+                            state.last_result = None;
                             state.push_log(format!("Failed: {err}"));
                         }
                     }
+                    state.reset_for_next_input();
                 }
             }
         }
 
+        state.tick = state.tick.wrapping_add(1);
         terminal.draw(|frame| render(frame, &state))?;
 
         if event::poll(Duration::from_millis(80))? {
             match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                    KeyCode::Char('q') => break,
-                    KeyCode::Enter => {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key {
+                    KeyEvent {
+                        code: KeyCode::Char('q'),
+                        ..
+                    } => break,
+                    KeyEvent {
+                        code: KeyCode::Esc, ..
+                    } => break,
+                    KeyEvent {
+                        code: KeyCode::Char('c'),
+                        modifiers,
+                        ..
+                    } if modifiers.contains(KeyModifiers::CONTROL) => break,
+                    KeyEvent {
+                        code: KeyCode::Enter,
+                        ..
+                    } => {
                         if state.processing {
                             continue;
                         }
@@ -99,6 +158,7 @@ pub async fn run_tui() -> Result<()> {
                         }
                         state.processing = true;
                         state.push_log(format!("Started processing: {url}"));
+                        state.input.clear();
 
                         let txc = tx.clone();
                         tokio::spawn(async move {
@@ -117,23 +177,39 @@ pub async fn run_tui() -> Result<()> {
                             };
                         });
                     }
-                    KeyCode::Char('c') => {
+                    KeyEvent {
+                        code: KeyCode::Char('c'),
+                        ..
+                    } => {
                         if let Some(res) = &state.last_result {
                             if let Err(err) = crate::clipboard::copy_to_clipboard(&res.pgn) {
                                 state.push_log(format!("Clipboard copy failed: {err}"));
                             } else {
                                 state.push_log("PGN copied");
                             }
+                        } else {
+                            state.push_log("No PGN available yet.");
                         }
                     }
-                    KeyCode::Char('o') => {
+                    KeyEvent {
+                        code: KeyCode::Char('o'),
+                        ..
+                    } => {
                         if let Some(result) = &state.last_result {
-                            let _ = browser::open_url(&result.final_analysis_url());
+                            let url = result.final_analysis_url();
+                            if let Err(err) = browser::open_url(&url) {
+                                state.push_log(format!("Open failed: {err}"));
+                            } else {
+                                state.push_log(format!("Open requested: {}", url));
+                            }
                         } else {
                             state.push_log("No final URL available to open.");
                         }
                     }
-                    KeyCode::Char('p') => {
+                    KeyEvent {
+                        code: KeyCode::Char('p'),
+                        ..
+                    } => {
                         if let Some(res) = &state.last_result {
                             let path = PathBuf::from("c2l-last.pgn");
                             let path_display = path.display().to_string();
@@ -141,13 +217,21 @@ pub async fn run_tui() -> Result<()> {
                             tokio::spawn(async move {
                                 let _ = fs::write(path.clone(), pgn).await;
                             });
-                            state.push_log(format!("PGN saved: {}", path_display));
+                            state.push_log(format!("PGN saved: {path_display}"));
+                        } else {
+                            state.push_log("No PGN available to save.");
                         }
                     }
-                    KeyCode::Backspace => {
+                    KeyEvent {
+                        code: KeyCode::Backspace,
+                        ..
+                    } => {
                         state.input.pop();
                     }
-                    KeyCode::Char(ch) => {
+                    KeyEvent {
+                        code: KeyCode::Char(ch),
+                        ..
+                    } => {
                         state.input.push(ch);
                     }
                     _ => {}
@@ -164,55 +248,204 @@ pub async fn run_tui() -> Result<()> {
 }
 
 fn render(frame: &mut Frame, state: &TuiState) {
+    let (panel_style, muted_style, success_style, warn_style, accent) = style_palette();
+
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
-            Constraint::Length(6),
-            Constraint::Length(8),
-            Constraint::Fill(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
         ])
         .split(frame.area());
 
-    let input = Paragraph::new(Line::from(format!("URL: {}", state.input))).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("URL Input (Enter=run, q=quit)"),
-    );
-    frame.render_widget(input, root[0]);
+    let header = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(panel_style)
+        .title(Span::styled(
+            " chess2lichess TUI ",
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        ))
+        .style(Style::default().bg(Color::Reset));
 
-    let status_text = if state.processing {
-        "Status: processing"
+    let processing = if state.processing {
+        format!("{} Processing", spinner(state.tick))
     } else {
-        "Status: idle"
+        "✓ Idle".to_string()
     };
-    let mut status = format!("{}\nFinal URL: {}", status_text, state.final_url.clone().unwrap_or_else(|| "-".to_string()),);
-    if let Some(last) = &state.last_result {
-        status.push_str(&format!("\nGame ID: {}", last.game_id));
+
+    let last_url = state
+        .final_url
+        .as_deref()
+        .map(|url| clamp_right(url, 84))
+        .unwrap_or_else(|| "-".to_string());
+
+    let game_id = state
+        .last_result
+        .as_ref()
+        .map(|result| result.game_id.as_str())
+        .unwrap_or("-");
+
+    let status_lines = vec![
+        Line::from(format!("Status: {processing}")),
+        Line::from(format!("Final URL: {last_url}")),
+        Line::from(format!("Game ID: {game_id}")),
+    ];
+    let status_block_lines = status_lines.clone();
+
+    let info = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(Span::styled(
+            " Status ",
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        ))
+        .title_bottom(Span::styled(
+            " Enter next URL and press Enter again ",
+            muted_style,
+        ))
+        .border_style(panel_style)
+        .style(panel_style);
+
+    let header_widget = Paragraph::new(status_lines).block(header).wrap(Wrap { trim: true });
+    frame.render_widget(header_widget, root[0]);
+
+    let body = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(38),
+            Constraint::Percentage(62),
+        ])
+        .split(root[1]);
+
+    let left = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(4), Constraint::Length(6), Constraint::Min(0)])
+        .split(body[0]);
+
+    let input_panel = Paragraph::new(format!("URL: {}", state.input))
+        .style(panel_style)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(panel_style)
+                .title(Span::styled(
+                    " URL Input ",
+                    Style::default().fg(Color::Rgb(129, 212, 250)).add_modifier(Modifier::BOLD),
+                ))
+                .title_bottom(Span::styled(
+                    " Enter: run   c:copy   o:open   p:save   q:quit ",
+                    muted_style,
+                )),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(input_panel, left[0]);
+
+    frame.render_widget(
+        Paragraph::new(status_block_lines)
+            .style(panel_style)
+            .block(
+                info
+            )
+            .wrap(Wrap { trim: true }),
+        left[1],
+    );
+
+    let mut messages = state
+        .logs
+        .iter()
+        .map(|line| ListItem::new(Span::styled(line.clone(), panel_style)))
+        .collect::<Vec<_>>();
+    if messages.is_empty() {
+        messages.push(ListItem::new(Span::styled(
+            "No logs yet.",
+            muted_style,
+        )));
     }
 
     frame.render_widget(
-        Paragraph::new(status).block(Block::default().borders(Borders::ALL).title("Status")),
-        root[1],
+        List::new(messages)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(panel_style)
+                    .title(Span::styled(
+                        " Logs ",
+                        success_style,
+                    ))
+                    .title_bottom(Span::styled(
+                        format!(" {} ", state.message),
+                        warn_style,
+                    )),
+            )
+            .style(panel_style),
+        left[2],
     );
 
-    let logs = state
-        .logs
-        .iter()
-        .map(|line| ListItem::new(line.clone()))
-        .collect::<Vec<_>>();
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(12),
+        ])
+        .split(body[1]);
+
+    let pgn = if state.pgn_preview.is_empty() {
+        "No PGN yet.".to_string()
+    } else {
+        state.pgn_preview.clone()
+    };
+
     frame.render_widget(
-        List::new(logs).block(
+        Paragraph::new(pgn)
+            .style(panel_style)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(panel_style)
+                    .title(Span::styled(
+                        " PGN Preview ",
+                        Style::default().fg(Color::Rgb(255, 183, 197)).add_modifier(Modifier::BOLD),
+                    )),
+            )
+            .wrap(Wrap { trim: true }),
+        right[1],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "Space left for next URL input | Terminal should support 24-bit color for best result",
+            muted_style,
+        ))
+        .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Logs (c:copy, o:open, p:save)"),
-        ),
-        root[2],
+                .border_type(BorderType::Rounded)
+                .border_style(panel_style)
+                .title(Span::styled(" Hints ",
+                    Style::default().fg(accent).add_modifier(Modifier::BOLD),
+                )),
+        )
+        .wrap(Wrap { trim: true }),
+        right[0],
     );
 
+    let footer_style = if state.processing {
+        warn_style
+    } else {
+        muted_style
+    };
     frame.render_widget(
-        Paragraph::new(state.pgn_preview.clone())
-            .block(Block::default().borders(Borders::ALL).title("PGN Preview")),
-        root[3],
+        Paragraph::new(state.message.clone()).style(footer_style).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(panel_style)
+                .title(Span::styled(" Message ", Style::default().fg(accent))),
+        ),
+        root[2],
     );
 }

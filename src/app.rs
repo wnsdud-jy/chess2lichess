@@ -113,19 +113,37 @@ pub async fn run_once(raw_url: String, options: RunOptions) -> Result<()> {
 }
 
 pub async fn run_interactive(options: RunOptions) -> Result<()> {
-    println!("Enter a chess.com game URL");
-    print!("> ");
-    io::stdout().flush().context("Failed to print input prompt")?;
+    println!("Interactive mode. Enter a URL, or type q / quit / exit to leave.");
 
-    let mut raw = String::new();
-    io::stdin().read_line(&mut raw)?;
+    loop {
+        print!("URL> ");
+        io::stdout().flush().context("Failed to print input prompt")?;
 
-    let url = raw.trim().to_string();
-    if url.is_empty() {
-        return Err(anyhow!("URL is empty."));
+        let mut raw = String::new();
+        let read = io::stdin().read_line(&mut raw)?;
+        if read == 0 {
+            println!("Bye.");
+            break;
+        }
+
+        if raw.trim().is_empty() {
+            continue;
+        }
+
+        let lowered = raw.trim().to_lowercase();
+        if matches!(lowered.as_str(), "q" | "quit" | "exit") {
+            println!("Bye.");
+            break;
+        }
+
+        if let Err(err) = run_once(raw.trim().to_string(), options.clone()).await {
+            eprintln!("Failed: {err}");
+        }
+
+        println!();
     }
 
-    run_once(url, options).await
+    Ok(())
 }
 
 async fn finalize_output(result: &AnalysisResult, options: &RunOptions) -> Result<()> {

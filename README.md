@@ -42,12 +42,6 @@ It is designed for fast, keyboard-first game analysis handoff.
 npm install -g @wnsdud-jy/c2l
 ```
 
-or run without global install:
-
-```bash
-npx @wnsdud-jy/c2l --help
-```
-
 > [!NOTE]
 > `npm` install downloads a platform-specific prebuilt `c2l` binary from GitHub Releases.
 
@@ -117,6 +111,15 @@ Prompt for URL interactively:
 ```bash
 c2l
 ```
+Then enter a URL and it will run continuously until you type `q`, `quit`, `exit`, or press Ctrl+C.
+Example session:
+
+```bash
+c2l
+URL> https://www.chess.com/game/live/123
+URL> https://www.chess.com/game/live/456
+URL> quit
+```
 
 > [!TIP]
 > Use `--raw-url` when chaining with shell tools, for example: `c2l --raw-url <url> | xargs -n1 echo`.
@@ -135,7 +138,19 @@ Keybindings:
 - `c`: copy PGN to clipboard
 - `o`: open final URL
 - `p`: save PGN to `c2l-last.pgn`
-- `q`: quit
+- `q`: quit TUI
+
+TUI runs in session mode as well: after a URL is processed, it keeps the input ready for the next URL.
+
+### TUI color troubleshooting
+
+If colors look unchanged or plain, run in a terminal that supports color:
+
+- `TERM` should be `xterm-256color` or compatible
+- set `COLORTERM=truecolor` when supported by your terminal
+
+On limited terminals, output is still functional and only the color layer is reduced.
+
 
 ## How It Works
 
