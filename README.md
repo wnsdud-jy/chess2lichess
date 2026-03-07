@@ -1,15 +1,159 @@
-# c2l
+<div align="center">
 
-`c2l` is a Rust CLI tool that converts a chess.com live game URL into a lichess analysis URL.
+# chess2lichess (`c2l`)
 
-## Quick Start
+**Turn a chess.com game URL into a lichess analysis URL from your terminal.**
+
+[![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?style=flat-square&logo=rust)](https://www.rust-lang.org)
+[![Build](https://img.shields.io/badge/build-cargo%20build-blue?style=flat-square)](#build)
+
+[Overview](#overview) • [Install](#install) • [Usage](#usage) • [TUI](#tui-mode) • [Limits](#limits)
+
+</div>
+
+## Overview
+
+`c2l` is a Rust CLI/TUI tool that:
+
+1. validates a `chess.com/game/live/...` URL,
+2. extracts PGN from chess.com (callback/page/archive fallbacks),
+3. imports that PGN to `https://lichess.org/api/import`,
+4. returns the final lichess analysis URL.
+
+It is designed for fast, keyboard-first game analysis handoff.
+
+> [!IMPORTANT]
+> This tool currently supports **chess.com live game URLs only**.
+
+## Features
+
+- URL validation for supported chess.com game links
+- PGN extraction with multiple fallback strategies
+- Lichess import via official API endpoint
+- Optional PGN copy / print / save
+- Optional browser auto-open
+- Interactive terminal mode and TUI mode
+
+## Install
+
+### Build
 
 ```bash
 cargo build --release
-./target/release/c2l "https://www.chess.com/game/live/123456789"
 ```
 
-## Notes
+Binary path:
 
-- Supports chess.com live game URLs
-- Includes optional TUI mode via `c2l tui`
+```bash
+target/release/c2l
+```
+
+### Run without install
+
+```bash
+cargo run -- "https://www.chess.com/game/live/123456789"
+```
+
+## Usage
+
+```text
+Usage: c2l [OPTIONS] [URL] [COMMAND]
+
+Commands:
+  tui   TUI 모드 실행
+  help  Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [URL]  chess.com 경기 URL
+
+Options:
+      --copy             PGN을 클립보드에 복사
+      --open             브라우저 열기
+      --print-pgn        PGN을 stdout에 출력
+      --no-open          자동으로 브라우저를 열지 않음
+      --save-pgn <PATH>  PGN을 파일로 저장
+      --raw-url          최종 URL 한 줄 출력
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+### Examples
+
+Direct URL:
+
+```bash
+c2l "https://www.chess.com/game/live/123456789"
+```
+
+Output final URL only:
+
+```bash
+c2l --raw-url "https://www.chess.com/game/live/123456789"
+```
+
+Save PGN and keep browser closed:
+
+```bash
+c2l --save-pgn game.pgn --no-open "https://www.chess.com/game/live/123456789"
+```
+
+Prompt for URL interactively:
+
+```bash
+c2l
+```
+
+> [!TIP]
+> Use `--raw-url` when chaining with shell tools, for example: `c2l --raw-url <url> | xargs -n1 echo`.
+
+## TUI Mode
+
+Start TUI:
+
+```bash
+c2l tui
+```
+
+Keybindings:
+
+- `Enter`: process current URL
+- `c`: copy PGN to clipboard
+- `o`: open final URL
+- `p`: save PGN to `c2l-last.pgn`
+- `q`: quit
+
+## How It Works
+
+Processing stages:
+
+1. URL parse and support check
+2. chess.com game data lookup
+3. PGN extraction + PGN shape validation
+4. lichess import API call
+5. final analysis URL output
+
+If enabled, `c2l` can also copy PGN, save PGN, print PGN, and open browser.
+
+## Limits
+
+- Non-chess.com URLs are rejected.
+- Private/restricted games may fail to resolve.
+- If chess.com page/API shape changes, PGN extraction may break.
+- If lichess API behavior changes, final URL extraction may fail.
+
+> [!NOTE]
+> Clipboard and browser-open behavior depend on local OS/session capabilities.
+
+## Development
+
+Run tests:
+
+```bash
+cargo test
+```
+
+Format check:
+
+```bash
+cargo fmt -- --check
+```
