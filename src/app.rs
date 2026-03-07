@@ -62,7 +62,7 @@ fn build_http_client() -> Result<Client> {
              Chrome/131.0.0.0 Safari/537.36",
         )
         .build()
-        .map_err(|e| anyhow!(format!("HTTP 클라이언트 생성 실패: {e}")))
+        .map_err(|e| anyhow!(format!("Failed to create HTTP client: {e}")))
 }
 
 pub async fn resolve_with_progress<F>(
@@ -74,25 +74,25 @@ where
 {
     let client = build_http_client()?;
 
-    progress("[1/5] URL 확인");
+    progress("[1/5] Validating URL");
     let game = chesscom::parse_chesscom_game_url(url)?;
-    progress("[1/5] URL 확인 완료");
+    progress("[1/5] URL validation complete");
 
-    progress("[2/5] chess.com 경기 확인 완료");
+    progress("[2/5] chess.com game lookup complete");
 
-    progress("[3/5] PGN 추출 시작");
+    progress("[3/5] Starting PGN extraction");
     let pgn = chesscom::fetch_game_pgn(&client, &game)
         .await
-        .context("PGN 추출 실패")?;
-    progress("[3/5] PGN 추출 완료");
+        .context("Failed to extract PGN")?;
+    progress("[3/5] PGN extraction complete");
 
-    progress("[4/5] lichess API import 시작");
+    progress("[4/5] Starting lichess API import");
     let analysis_url = lichess::import_via_api(&client, &pgn)
         .await
-        .context("lichess API import 실패")?;
-    progress("[4/5] lichess API import 성공");
+        .context("lichess API import failed")?;
+    progress("[4/5] lichess API import succeeded");
 
-    progress("[5/5] 완료");
+    progress("[5/5] Done");
 
     Ok(AnalysisResult {
         game_id: game.game_id,
@@ -113,16 +113,16 @@ pub async fn run_once(raw_url: String, options: RunOptions) -> Result<()> {
 }
 
 pub async fn run_interactive(options: RunOptions) -> Result<()> {
-    println!("chess.com 경기 URL을 입력하세요");
+    println!("Enter a chess.com game URL");
     print!("> ");
-    io::stdout().flush().context("입력 프롬프트 출력 실패")?;
+    io::stdout().flush().context("Failed to print input prompt")?;
 
     let mut raw = String::new();
     io::stdin().read_line(&mut raw)?;
 
     let url = raw.trim().to_string();
     if url.is_empty() {
-        return Err(anyhow!("URL이 비어있습니다."));
+        return Err(anyhow!("URL is empty."));
     }
 
     run_once(url, options).await
@@ -133,18 +133,18 @@ async fn finalize_output(result: &AnalysisResult, options: &RunOptions) -> Resul
 
     if options.copy {
         if let Err(err) = clipboard::copy_to_clipboard(&result.pgn) {
-            eprintln!("PGN 복사 실패: {err}");
+            eprintln!("Failed to copy PGN: {err}");
         } else if !options.raw_url {
-            println!("PGN 복사 완료");
+            println!("PGN copied");
         }
     }
 
     if let Some(path) = &options.save_pgn {
         fs::write(path, &result.pgn)
             .await
-            .with_context(|| format!("PGN 저장 실패: {}", path.display()))?;
+            .with_context(|| format!("Failed to save PGN: {}", path.display()))?;
         if !options.raw_url {
-            println!("PGN 저장: {}", path.display());
+            println!("PGN saved: {}", path.display());
         }
     }
 
@@ -158,13 +158,13 @@ async fn finalize_output(result: &AnalysisResult, options: &RunOptions) -> Resul
     if options.raw_url {
         println!("{}", final_url);
     } else {
-        println!("최종 URL: {final_url}");
-        println!("획득 방식: lichess API import");
+        println!("Final URL: {final_url}");
+        println!("Acquired via: lichess API import");
     }
 
     if options.should_open() {
         if let Err(err) = open_url(&final_url) {
-            eprintln!("브라우저 자동 열기 실패: {err}");
+            eprintln!("Failed to auto-open browser: {err}");
         }
     }
 

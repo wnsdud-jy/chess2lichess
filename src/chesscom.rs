@@ -306,7 +306,7 @@ async fn fetch_callback_body(client: &Client, game_id: &str) -> Result<String> {
         .get(&endpoint)
         .send()
         .await
-        .with_context(|| format!("callback 엔드포인트 요청 실패: {endpoint}"))?;
+        .with_context(|| format!("Callback endpoint request failed: {endpoint}"))?;
 
     if response.status() == StatusCode::FORBIDDEN || response.status() == StatusCode::UNAUTHORIZED {
         return Err(anyhow!(C2lError::PrivateOrUnavailable(format!(
@@ -317,7 +317,7 @@ async fn fetch_callback_body(client: &Client, game_id: &str) -> Result<String> {
     response
         .text()
         .await
-        .with_context(|| format!("callback 응답 본문 읽기 실패: {endpoint}"))
+        .with_context(|| format!("Failed to read callback response body: {endpoint}"))
 }
 
 async fn try_callback_endpoint(client: &Client, game_id: &str) -> Result<String> {
@@ -328,7 +328,7 @@ async fn try_callback_endpoint(client: &Client, game_id: &str) -> Result<String>
     }
 
     Err(anyhow!(C2lError::PgnUnavailable(format!(
-        "callback에서 PGN 미발견: https://www.chess.com/callback/live/game/{game_id}"
+        "PGN not found in callback: https://www.chess.com/callback/live/game/{game_id}"
     ))))
 }
 
@@ -337,11 +337,11 @@ async fn try_page_scrape(client: &Client, page_url: &Url) -> Result<String> {
         .get(page_url.as_str())
         .send()
         .await
-        .with_context(|| format!("경기 페이지 요청 실패: {}", page_url))?;
+        .with_context(|| format!("Game page request failed: {}", page_url))?;
 
     if response.status() == StatusCode::FORBIDDEN || response.status() == StatusCode::UNAUTHORIZED {
         return Err(anyhow!(C2lError::PrivateOrUnavailable(format!(
-            "페이지 접근이 제한됨: {}",
+            "Page access is restricted: {}",
             page_url
         ))));
     }
@@ -356,7 +356,7 @@ async fn try_page_scrape(client: &Client, page_url: &Url) -> Result<String> {
     }
 
     Err(anyhow!(C2lError::PgnUnavailable(
-        "페이지에서 PGN을 추출하지 못했습니다.".to_string()
+        "Could not extract PGN from the game page.".to_string()
     )))
 }
 
@@ -372,7 +372,7 @@ async fn try_archive_month(
         .get(&endpoint)
         .send()
         .await
-        .with_context(|| format!("chess.com 공개 API 요청 실패: {endpoint}"))?;
+        .with_context(|| format!("chess.com public API request failed: {endpoint}"))?;
 
     if response.status().is_client_error() || response.status().is_server_error() {
         return Ok(None);
@@ -381,9 +381,9 @@ async fn try_archive_month(
     let body = response
         .text()
         .await
-        .with_context(|| format!("chess.com 공개 API 응답 읽기 실패: {endpoint}"))?;
+        .with_context(|| format!("Failed to read chess.com public API response: {endpoint}"))?;
     let parsed = serde_json::from_str::<Value>(&body)
-        .with_context(|| format!("chess.com 공개 API JSON 파싱 실패: {endpoint}"))?;
+        .with_context(|| format!("Failed to parse chess.com public API JSON: {endpoint}"))?;
     let games = parsed.get("games").and_then(Value::as_array);
     let Some(games) = games else {
         return Ok(None);
@@ -415,7 +415,7 @@ async fn try_archive_fallback(client: &Client, game_id: &str, lookup: &ArchiveLo
     }
 
     Err(anyhow!(C2lError::PgnUnavailable(
-        "공개 아카이브 API에서 PGN을 찾지 못했습니다.".to_string(),
+        "PGN not found in public archive API.".to_string(),
     )))
 }
 
@@ -449,7 +449,7 @@ pub async fn fetch_game_pgn(client: &Client, game: &ChessGameRef) -> Result<Stri
     }
 
     Err(anyhow!(C2lError::PgnUnavailable(
-        "PGN을 확보하지 못했습니다. callback/page/공개 아카이브 모두 실패했습니다.".to_string(),
+        "Failed to retrieve PGN. callback/page/public archive all failed.".to_string(),
     )))
 }
 
@@ -466,13 +466,13 @@ mod tests {
     #[test]
     fn parse_unsupported_host() {
         let err = parse_chesscom_game_url("https://www.lichess.org/game/live/123").unwrap_err();
-        assert!(err.to_string().contains("지원하지 않는"));
+        assert!(err.to_string().contains("Unsupported"));
     }
 
     #[test]
     fn parse_bad_path() {
         let err = parse_chesscom_game_url("https://www.chess.com/pgn/123").unwrap_err();
-        assert!(err.to_string().contains("지원하지 않는"));
+        assert!(err.to_string().contains("Unsupported"));
     }
 
     #[test]

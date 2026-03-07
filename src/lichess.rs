@@ -47,7 +47,7 @@ fn extract_analysis_url(body: &str, location: Option<&str>, final_url: Option<&s
 
 pub async fn import_via_api(client: &Client, pgn: &str) -> Result<String> {
     if pgn.trim().is_empty() {
-        return Err(anyhow!("빈 PGN은 lichess에 import할 수 없습니다."));
+        return Err(anyhow!("Cannot import an empty PGN to lichess."));
     }
 
     let response = client
@@ -55,11 +55,11 @@ pub async fn import_via_api(client: &Client, pgn: &str) -> Result<String> {
         .form(&[("pgn", pgn)])
         .send()
         .await
-        .map_err(|e| anyhow!(format!("lichess import API 요청 실패: {e}")))?;
+        .map_err(|e| anyhow!(format!("lichess import API request failed: {e}")))?;
 
     let status = response.status();
     if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        return Err(anyhow!("lichess import API 접근이 거부되었습니다: {status}"));
+        return Err(anyhow!("lichess import API access was denied: {status}"));
     }
 
     let location = response
@@ -75,7 +75,7 @@ pub async fn import_via_api(client: &Client, pgn: &str) -> Result<String> {
     }
 
     Err(anyhow!(format!(
-        "lichess import API 응답에서 최종 URL을 찾지 못했습니다 (status: {status})"
+        "Could not find a final URL in the lichess import API response (status: {status})"
     )))
 }
 

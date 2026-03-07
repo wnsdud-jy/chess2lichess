@@ -75,7 +75,7 @@ pub async fn run_tui() -> Result<()> {
                         }
                         Err(err) => {
                             state.final_url = None;
-                            state.push_log(format!("실패: {err}"));
+                            state.push_log(format!("Failed: {err}"));
                         }
                     }
                 }
@@ -94,11 +94,11 @@ pub async fn run_tui() -> Result<()> {
                         }
                         let url = state.input.trim().to_string();
                         if url.is_empty() {
-                            state.push_log("URL을 입력하세요.");
+                            state.push_log("Please enter a URL.");
                             continue;
                         }
                         state.processing = true;
-                        state.push_log(format!("처리 시작: {url}"));
+                        state.push_log(format!("Started processing: {url}"));
 
                         let txc = tx.clone();
                         tokio::spawn(async move {
@@ -120,9 +120,9 @@ pub async fn run_tui() -> Result<()> {
                     KeyCode::Char('c') => {
                         if let Some(res) = &state.last_result {
                             if let Err(err) = crate::clipboard::copy_to_clipboard(&res.pgn) {
-                                state.push_log(format!("클립보드 복사 실패: {err}"));
+                                state.push_log(format!("Clipboard copy failed: {err}"));
                             } else {
-                                state.push_log("PGN 복사 완료");
+                                state.push_log("PGN copied");
                             }
                         }
                     }
@@ -130,7 +130,7 @@ pub async fn run_tui() -> Result<()> {
                         if let Some(result) = &state.last_result {
                             let _ = browser::open_url(&result.final_analysis_url());
                         } else {
-                            state.push_log("열 수 있는 최종 URL이 없습니다.");
+                            state.push_log("No final URL available to open.");
                         }
                     }
                     KeyCode::Char('p') => {
@@ -141,7 +141,7 @@ pub async fn run_tui() -> Result<()> {
                             tokio::spawn(async move {
                                 let _ = fs::write(path.clone(), pgn).await;
                             });
-                            state.push_log(format!("PGN 저장: {}", path_display));
+                            state.push_log(format!("PGN saved: {}", path_display));
                         }
                     }
                     KeyCode::Backspace => {
@@ -177,22 +177,22 @@ fn render(frame: &mut Frame, state: &TuiState) {
     let input = Paragraph::new(Line::from(format!("URL: {}", state.input))).block(
         Block::default()
             .borders(Borders::ALL)
-            .title("URL 입력 (Enter=실행, q=종료)"),
+            .title("URL Input (Enter=run, q=quit)"),
     );
     frame.render_widget(input, root[0]);
 
     let status_text = if state.processing {
-        "상태: 처리중"
+        "Status: processing"
     } else {
-        "상태: 대기"
+        "Status: idle"
     };
-    let mut status = format!("{}\n최종 URL: {}", status_text, state.final_url.clone().unwrap_or_else(|| "-".to_string()),);
+    let mut status = format!("{}\nFinal URL: {}", status_text, state.final_url.clone().unwrap_or_else(|| "-".to_string()),);
     if let Some(last) = &state.last_result {
-        status.push_str(&format!("\n게임ID: {}", last.game_id));
+        status.push_str(&format!("\nGame ID: {}", last.game_id));
     }
 
     frame.render_widget(
-        Paragraph::new(status).block(Block::default().borders(Borders::ALL).title("상태")),
+        Paragraph::new(status).block(Block::default().borders(Borders::ALL).title("Status")),
         root[1],
     );
 
@@ -205,14 +205,14 @@ fn render(frame: &mut Frame, state: &TuiState) {
         List::new(logs).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("로그 (c:복사, o:열기, p:저장)"),
+                .title("Logs (c:copy, o:open, p:save)"),
         ),
         root[2],
     );
 
     frame.render_widget(
         Paragraph::new(state.pgn_preview.clone())
-            .block(Block::default().borders(Borders::ALL).title("PGN 미리보기")),
+            .block(Block::default().borders(Borders::ALL).title("PGN Preview")),
         root[3],
     );
 }
