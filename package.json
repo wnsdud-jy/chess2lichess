@@ -1,0 +1,40 @@
+{
+  "name": "@wnsdud/c2l",
+  "version": "0.1.0",
+  "description": "Turn a chess.com game URL into a lichess analysis URL from your terminal.",
+  "type": "module",
+  "bin": {
+    "c2l": "bin/c2l.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md",
+    "package.json"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "keywords": [
+    "chess",
+    "chess-com",
+    "lichess",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wnsdud-jy/chess2lichess.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wnsdud-jy/chess2lichess/issues"
+  },
+  "homepage": "https://github.com/wnsdud-jy/chess2lichess#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "c2l": {
+    "githubRepo": "wnsdud-jy/chess2lichess"
+  }
+}

@@ -1,4 +1,6 @@
 /target
+/node_modules
+/vendor
 
 # Editor and OS files
 .DS_Store

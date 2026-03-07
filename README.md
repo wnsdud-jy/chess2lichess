@@ -36,7 +36,22 @@ It is designed for fast, keyboard-first game analysis handoff.
 
 ## Install
 
-### Build
+### npm (recommended)
+
+```bash
+npm install -g @wnsdud/c2l
+```
+
+or run without global install:
+
+```bash
+npx @wnsdud/c2l --help
+```
+
+> [!NOTE]
+> `npm` install downloads a platform-specific prebuilt `c2l` binary from GitHub Releases.
+
+### Build from source
 
 ```bash
 cargo build --release
@@ -141,6 +156,20 @@ If enabled, `c2l` can also copy PGN, save PGN, print PGN, and open browser.
 - If chess.com page/API shape changes, PGN extraction may break.
 - If lichess API behavior changes, final URL extraction may fail.
 
+## npm Package Notes
+
+- Supported npm binary targets:
+  - `linux-x64`
+  - `linux-arm64`
+  - `darwin-x64`
+  - `darwin-arm64`
+  - `win32-x64`
+- To skip binary download at install time: `C2L_SKIP_POSTINSTALL=1`
+- To override release repository (advanced): `C2L_GITHUB_REPO=<owner/repo>`
+- To override release tag (advanced): `C2L_RELEASE_TAG=vX.Y.Z`
+
+If install fails, check that the matching release asset exists for your package version.
+
 > [!NOTE]
 > Clipboard and browser-open behavior depend on local OS/session capabilities.
 
@@ -157,3 +186,16 @@ Format check:
 ```bash
 cargo fmt -- --check
 ```
+
+npm tests:
+
+```bash
+npm test
+```
+
+## Release (Maintainers)
+
+1. Ensure `Cargo.toml` and `package.json` versions match.
+2. Push a tag like `v0.1.0`.
+3. `release-binaries` workflow uploads 5 platform binaries + checksum file to the GitHub Release.
+4. `npm-publish` workflow publishes `@wnsdud/c2l` publicly.
