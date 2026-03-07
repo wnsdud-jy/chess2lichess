@@ -28,7 +28,7 @@ function requestBuffer(url, redirectCount = 0) {
       url,
       {
         headers: {
-          'User-Agent': '@wnsdud/c2l-postinstall',
+          'User-Agent': '@wnsdud-jy/c2l-postinstall',
         },
       },
       (response) => {

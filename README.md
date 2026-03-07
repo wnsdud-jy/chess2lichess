@@ -39,13 +39,13 @@ It is designed for fast, keyboard-first game analysis handoff.
 ### npm (recommended)
 
 ```bash
-npm install -g @wnsdud/c2l
+npm install -g @wnsdud-jy/c2l
 ```
 
 or run without global install:
 
 ```bash
-npx @wnsdud/c2l --help
+npx @wnsdud-jy/c2l --help
 ```
 
 > [!NOTE]
@@ -196,6 +196,6 @@ npm test
 ## Release (Maintainers)
 
 1. Ensure `Cargo.toml` and `package.json` versions match.
-2. Push a tag like `v0.1.0`.
+2. Push a tag like `v0.1.1`.
 3. `release-binaries` workflow uploads 5 platform binaries + checksum file to the GitHub Release.
-4. `npm-publish` workflow publishes `@wnsdud/c2l` publicly.
+4. `npm-publish` workflow publishes `@wnsdud-jy/c2l` publicly.

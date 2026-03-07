@@ -19,7 +19,7 @@ const binPath = installedBinaryPath(target);
 if (!fs.existsSync(binPath)) {
   console.error('[c2l] binary not found for this package install.');
   console.error(`[c2l] expected path: ${binPath}`);
-  console.error('[c2l] try reinstalling: npm install -g @wnsdud/c2l');
+  console.error('[c2l] try reinstalling: npm install -g @wnsdud-jy/c2l');
   process.exit(1);
 }
 

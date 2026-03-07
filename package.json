@@ -1,6 +1,6 @@
 {
-  "name": "@wnsdud/c2l",
-  "version": "0.1.0",
+  "name": "@wnsdud-jy/c2l",
+  "version": "0.1.1",
   "description": "Turn a chess.com game URL into a lichess analysis URL from your terminal.",
   "type": "module",
   "bin": {
