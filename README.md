@@ -60,19 +60,19 @@ cargo run -- "https://www.chess.com/game/live/123456789"
 Usage: c2l [OPTIONS] [URL] [COMMAND]
 
 Commands:
-  tui   TUI 모드 실행
+  tui   Run TUI mode
   help  Print this message or the help of the given subcommand(s)
 
 Arguments:
-  [URL]  chess.com 경기 URL
+  [URL]  chess.com game URL
 
 Options:
-      --copy             PGN을 클립보드에 복사
-      --open             브라우저 열기
-      --print-pgn        PGN을 stdout에 출력
-      --no-open          자동으로 브라우저를 열지 않음
-      --save-pgn <PATH>  PGN을 파일로 저장
-      --raw-url          최종 URL 한 줄 출력
+      --copy             Copy PGN to clipboard
+      --open             Open browser
+      --print-pgn        Print PGN to stdout
+      --no-open          Do not open browser automatically
+      --save-pgn <PATH>  Save PGN to file
+      --raw-url          Print only the final URL
   -h, --help             Print help
   -V, --version          Print version
 ```

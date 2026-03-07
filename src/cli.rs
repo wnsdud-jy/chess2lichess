@@ -8,35 +8,35 @@ pub struct Cli {
     #[command(subcommand)]
     pub mode: Option<Commands>,
 
-    #[arg(value_name = "URL", help = "chess.com 경기 URL")]
+    #[arg(value_name = "URL", help = "chess.com game URL")]
     pub url: Option<String>,
 
-    #[arg(long = "copy", help = "PGN을 클립보드에 복사")]
+    #[arg(long = "copy", help = "Copy PGN to clipboard")]
     pub copy: bool,
 
-    #[arg(long = "open", conflicts_with = "no_open", help = "브라우저 열기")]
+    #[arg(long = "open", conflicts_with = "no_open", help = "Open browser")]
     pub open: bool,
 
-    #[arg(long = "print-pgn", help = "PGN을 stdout에 출력")]
+    #[arg(long = "print-pgn", help = "Print PGN to stdout")]
     pub print_pgn: bool,
 
-    #[arg(long = "no-open", help = "자동으로 브라우저를 열지 않음")]
+    #[arg(long = "no-open", help = "Do not open browser automatically")]
     pub no_open: bool,
 
-    #[arg(long = "save-pgn", value_name = "PATH", help = "PGN을 파일로 저장")]
+    #[arg(long = "save-pgn", value_name = "PATH", help = "Save PGN to file")]
     pub save_pgn: Option<PathBuf>,
 
     #[arg(
         long = "raw-url",
         conflicts_with = "print_pgn",
-        help = "최종 URL 한 줄 출력"
+        help = "Print only the final URL"
     )]
     pub raw_url: bool,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// TUI 모드 실행
+    /// Run TUI mode
     Tui,
 }
 
