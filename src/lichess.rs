@@ -1,5 +1,6 @@
-use anyhow::{anyhow, Result};
-use reqwest::{header::LOCATION, Client, StatusCode};
+use crate::error::C2lError;
+use anyhow::{Result, anyhow};
+use reqwest::{Client, StatusCode, header::LOCATION};
 use serde_json::Value;
 
 fn normalize_lichess_url(candidate: &str) -> Option<String> {
@@ -12,7 +13,11 @@ fn normalize_lichess_url(candidate: &str) -> Option<String> {
     None
 }
 
-fn extract_analysis_url(body: &str, location: Option<&str>, final_url: Option<&str>) -> Option<String> {
+fn extract_analysis_url(
+    body: &str,
+    location: Option<&str>,
+    final_url: Option<&str>,
+) -> Option<String> {
     if let Ok(v) = serde_json::from_str::<Value>(body) {
         if let Some(url) = v.get("url").and_then(Value::as_str)
             && let Some(normalized) = normalize_lichess_url(url)
@@ -55,7 +60,24 @@ pub async fn import_via_api(client: &Client, pgn: &str) -> Result<String> {
         .form(&[("pgn", pgn)])
         .send()
         .await
-        .map_err(|e| anyhow!(format!("lichess import API request failed: {e}")))?;
+        .map_err(|e| {
+            anyhow!(C2lError::RetryableRequest {
+                url: "https://lichess.org/api/import".to_string(),
+                message: e.to_string(),
+            })
+        })?;
+
+    if response.status() == StatusCode::TOO_MANY_REQUESTS || response.status().is_server_error() {
+        return Err(anyhow!(C2lError::RetryableHttp {
+            url: "https://lichess.org/api/import".to_string(),
+            status: response.status().as_u16(),
+            message: response
+                .status()
+                .canonical_reason()
+                .unwrap_or("request failed")
+                .to_string(),
+        }));
+    }
 
     let status = response.status();
     if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {

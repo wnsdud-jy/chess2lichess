@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
-use reqwest::{Client, StatusCode};
+use anyhow::{Context, Result, anyhow};
 use regex::Regex;
+use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use url::Url;
 
@@ -13,7 +13,8 @@ pub struct ChessGameRef {
 }
 
 pub fn is_supported_chesscom_game_url(url: &Url) -> bool {
-    matches!(url.host_str(), Some("chess.com") | Some("www.chess.com")) && url.scheme().starts_with("http")
+    matches!(url.host_str(), Some("chess.com") | Some("www.chess.com"))
+        && url.scheme().starts_with("http")
 }
 
 pub fn parse_game_id(url: &Url) -> Option<String> {
@@ -32,7 +33,11 @@ pub fn parse_game_id(url: &Url) -> Option<String> {
 
     let id = segments[2];
     let id_re = Regex::new(r"^[A-Za-z0-9-]+$").unwrap();
-    if id_re.is_match(id) { Some(id.to_string()) } else { None }
+    if id_re.is_match(id) {
+        Some(id.to_string())
+    } else {
+        None
+    }
 }
 
 pub fn parse_chesscom_game_url(raw: &str) -> Result<ChessGameRef> {
@@ -41,8 +46,12 @@ pub fn parse_chesscom_game_url(raw: &str) -> Result<ChessGameRef> {
         return Err(anyhow!(C2lError::UnsupportedUrl(raw.to_string())));
     }
 
-    let game_id = parse_game_id(&url).ok_or_else(|| anyhow!(C2lError::UnsupportedUrl(raw.to_string())))?;
-    Ok(ChessGameRef { source_url: url, game_id })
+    let game_id =
+        parse_game_id(&url).ok_or_else(|| anyhow!(C2lError::UnsupportedUrl(raw.to_string())))?;
+    Ok(ChessGameRef {
+        source_url: url,
+        game_id,
+    })
 }
 
 fn extract_pgn_from_json_value(value: &Value) -> Option<String> {
@@ -184,8 +193,7 @@ fn extract_pgn_from_body(text: &str) -> Option<String> {
 }
 
 fn cleanup_pgn(pgn: String) -> String {
-    pgn
-        .replace("\r\n", "\n")
+    pgn.replace("\r\n", "\n")
         .lines()
         .map(|line| line.trim_end())
         .collect::<Vec<_>>()
@@ -214,11 +222,19 @@ fn parse_year_month(date: &str) -> Option<(i32, u32)> {
 }
 
 fn prev_month(year: i32, month: u32) -> (i32, u32) {
-    if month == 1 { (year - 1, 12) } else { (year, month - 1) }
+    if month == 1 {
+        (year - 1, 12)
+    } else {
+        (year, month - 1)
+    }
 }
 
 fn next_month(year: i32, month: u32) -> (i32, u32) {
-    if month == 12 { (year + 1, 1) } else { (year, month + 1) }
+    if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    }
 }
 
 fn month_candidates(year: i32, month: u32) -> Vec<(i32, u32)> {
@@ -405,7 +421,11 @@ async fn try_archive_month(
     Ok(None)
 }
 
-async fn try_archive_fallback(client: &Client, game_id: &str, lookup: &ArchiveLookup) -> Result<String> {
+async fn try_archive_fallback(
+    client: &Client,
+    game_id: &str,
+    lookup: &ArchiveLookup,
+) -> Result<String> {
     for username in &lookup.usernames {
         for (year, month) in month_candidates(lookup.year, lookup.month) {
             if let Some(pgn) = try_archive_month(client, username, year, month, game_id).await? {
@@ -477,7 +497,8 @@ mod tests {
 
     #[test]
     fn validate_pgn_shape() {
-        let good_with_result = "[Event \"x\"]\n[White \"a\"]\n[Black \"b\"]\n[Result \"1-0\"]\n1. e4 e5";
+        let good_with_result =
+            "[Event \"x\"]\n[White \"a\"]\n[Black \"b\"]\n[Result \"1-0\"]\n1. e4 e5";
         let bad = "just text";
         assert!(looks_like_pgn(good_with_result));
         assert!(!looks_like_pgn(bad));

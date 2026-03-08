@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 pub fn open_url(url: &str) -> Result<()> {
     webbrowser::open(url)

@@ -2,78 +2,79 @@
 
 # chess2lichess (`c2l`)
 
-**Turn a chess.com game URL into a lichess analysis URL from your terminal.**
+**Turn a chess.com live game URL into a lichess analysis URL from the terminal.**
 
-[![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?style=flat-square&logo=rust)](https://www.rust-lang.org)
-[![Build](https://img.shields.io/badge/build-cargo%20build-blue?style=flat-square)](#build)
+![npm version](https://img.shields.io/npm/v/@wnsdud-jy/c2l?style=flat-square)
+![node](https://img.shields.io/node/v/@wnsdud-jy/c2l?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-9c27b0?style=flat-square)
 
-[Overview](#overview) • [Install](#install) • [Usage](#usage) • [TUI](#tui-mode) • [Limits](#limits)
+[Overview](#overview) • [Quick start](#quick-start---npm) • [Usage](#usage) • [TUI](#tui-mode) • [npm package notes](#npm-package-notes) • [Limits](#limits)
 
 </div>
 
 ## Overview
 
-`c2l` is a Rust CLI/TUI tool that:
+`c2l` is a small CLI that converts a `chess.com` live game URL into a `lichess.org` analysis link.
 
-1. validates a `chess.com/game/live/...` URL,
-2. extracts PGN from chess.com (callback/page/archive fallbacks),
-3. imports that PGN to `https://lichess.org/api/import`,
-4. returns the final lichess analysis URL.
-
-It is designed for fast, keyboard-first game analysis handoff.
+It runs as a native binary (Rust implementation) while providing a simple Node entry point at the package level.
 
 > [!IMPORTANT]
-> This tool currently supports **chess.com live game URLs only**.
+> `c2l` supports **chess.com live game URLs** only.
 
-## Features
+## Key features
 
-- URL validation for supported chess.com game links
-- PGN extraction with multiple fallback strategies
-- Lichess import via official API endpoint
-- Optional PGN copy / print / save
-- Optional browser auto-open
-- Interactive terminal mode and TUI mode
+- URL validation for supported `chess.com/game/live/...` links
+- PGN extraction with fallback strategies
+- PGN import via `https://lichess.org/api/import`
+- Final analysis URL output and optional actions
+  - copy PGN to clipboard
+  - print PGN
+  - save PGN to a file
+  - auto open browser
+- Interactive URL input mode and TUI mode
 
-## Install
+## Quick start - npm
 
-### npm (recommended)
+Install globally for shell usage:
 
 ```bash
 npm install -g @wnsdud-jy/c2l
 ```
 
-> [!NOTE]
-> `npm` install downloads a platform-specific prebuilt `c2l` binary from GitHub Releases.
-
-### Build from source
+Use `c2l` directly:
 
 ```bash
-cargo build --release
+c2l "https://www.chess.com/game/live/123456789"
 ```
 
-Binary path:
+Run without global install:
 
 ```bash
-target/release/c2l
+npx @wnsdud-jy/c2l "https://www.chess.com/game/live/123456789"
 ```
 
-### Run without install
+If you want a local dependency:
 
 ```bash
-cargo run -- "https://www.chess.com/game/live/123456789"
+npm i -D @wnsdud-jy/c2l
+npx c2l "https://www.chess.com/game/live/123456789"
 ```
+
+> [!TIP]
+> `npm`/`npx` install does **not** require a Rust toolchain. It downloads a prebuilt binary for your platform.
 
 ## Usage
 
 ```text
-Usage: c2l [OPTIONS] [URL] [COMMAND]
+Usage: c2l [OPTIONS] [URL...] [COMMAND]
 
 Commands:
   tui   Run TUI mode
+  doctor  Run environment and release checks
   help  Print this message or the help of the given subcommand(s)
 
 Arguments:
-  [URL]  chess.com game URL
+  [URL]  chess.com game URL(s). Can be repeated for batch mode.
 
 Options:
       --copy             Copy PGN to clipboard
@@ -82,135 +83,93 @@ Options:
       --no-open          Do not open browser automatically
       --save-pgn <PATH>  Save PGN to file
       --raw-url          Print only the final URL
+      --json             Print machine-readable JSON output
+      --quiet            Suppress human-readable progress and summary messages
+      --verbose          Show verbose progress logs
+      --format <FORMAT>  Output format: text|json|csv [default: text]
+      --input <PATH>     Read URLs from a file, one per line
   -h, --help             Print help
   -V, --version          Print version
 ```
 
-### Examples
-
-Direct URL:
+Examples:
 
 ```bash
+# Process one URL
 c2l "https://www.chess.com/game/live/123456789"
-```
 
-Output final URL only:
+# Process multiple URLs at once
+c2l "https://www.chess.com/game/live/111" "https://www.chess.com/game/live/222" --raw-url
 
-```bash
+# Process file input and output JSON
+c2l --json --input urls.txt
+
+# Pipe URLs via stdin
+printf "%s\n%s\n" "https://www.chess.com/game/live/111" "https://www.chess.com/game/live/222" | c2l --json
+
+# Get only final URL for scripting
 c2l --raw-url "https://www.chess.com/game/live/123456789"
-```
 
-Save PGN and keep browser closed:
-
-```bash
+# Save PGN and avoid opening browser
 c2l --save-pgn game.pgn --no-open "https://www.chess.com/game/live/123456789"
-```
 
-Prompt for URL interactively:
-
-```bash
+# Interactive mode
 c2l
-```
-Then enter a URL and it will run continuously until you type `q`, `quit`, `exit`, or press Ctrl+C.
-Example session:
-
-```bash
-c2l
-URL> https://www.chess.com/game/live/123
-URL> https://www.chess.com/game/live/456
+URL> https://www.chess.com/game/live/111
+URL> https://www.chess.com/game/live/222
 URL> quit
 ```
 
 > [!TIP]
-> Use `--raw-url` when chaining with shell tools, for example: `c2l --raw-url <url> | xargs -n1 echo`.
+> For shell pipelines, pass `--raw-url` and chain output directly.
 
-## TUI Mode
-
-Start TUI:
+## TUI mode
 
 ```bash
 c2l tui
 ```
 
-Keybindings:
-
 - `Enter`: process current URL
 - `c`: copy PGN to clipboard
-- `o`: open final URL
-- `p`: save PGN to `c2l-last.pgn`
-- `q`: quit TUI
+- `o`: open final URL in browser
+- `p`: save PGN as `c2l-last.pgn`
+- `q`, `Esc`, or `Ctrl+C`: quit
 
-TUI runs in session mode as well: after a URL is processed, it keeps the input ready for the next URL.
+## npm package notes
 
-### TUI color troubleshooting
+During `npm` install, `postinstall` runs `scripts/postinstall.js`:
 
-If colors look unchanged or plain, run in a terminal that supports color:
+- Resolve your platform/arch (`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`)
+- Download the matching asset from GitHub Releases
+- Verify SHA-256 via checksums file
+- Save binary to `vendor/` in the package
+- Make binary executable (`chmod +x`) on non-Windows platforms
 
-- `TERM` should be `xterm-256color` or compatible
-- set `COLORTERM=truecolor` when supported by your terminal
+Supported environment variables:
 
-On limited terminals, output is still functional and only the color layer is reduced.
+- `C2L_SKIP_POSTINSTALL=1`: skip download step
+- `C2L_GITHUB_REPO=<owner/repo>`: override release repository
+- `C2L_RELEASE_TAG=<tag>`: override release tag (default: `v<package-version>`)
 
+`bin/c2l.js` simply launches the downloaded binary for your environment.
 
-## How It Works
-
-Processing stages:
-
-1. URL parse and support check
-2. chess.com game data lookup
-3. PGN extraction + PGN shape validation
-4. lichess import API call
-5. final analysis URL output
-
-If enabled, `c2l` can also copy PGN, save PGN, print PGN, and open browser.
-
-## Limits
-
-- Non-chess.com URLs are rejected.
-- Private/restricted games may fail to resolve.
-- If chess.com page/API shape changes, PGN extraction may break.
-- If lichess API behavior changes, final URL extraction may fail.
-
-## npm Package Notes
-
-- Supported npm binary targets:
-  - `linux-x64`
-  - `linux-arm64`
-  - `darwin-x64`
-  - `darwin-arm64`
-  - `win32-x64`
-- To skip binary download at install time: `C2L_SKIP_POSTINSTALL=1`
-- To override release repository (advanced): `C2L_GITHUB_REPO=<owner/repo>`
-- To override release tag (advanced): `C2L_RELEASE_TAG=vX.Y.Z`
-
-If install fails, check that the matching release asset exists for your package version.
-
-> [!NOTE]
-> Clipboard and browser-open behavior depend on local OS/session capabilities.
-
-## Development
-
-Run tests:
+## Build from source
 
 ```bash
+cargo build --release
 cargo test
 ```
 
-Format check:
-
-```bash
-cargo fmt -- --check
-```
-
-npm tests:
+Run Node-side tests:
 
 ```bash
 npm test
 ```
 
-## Release (Maintainers)
+## Limits
 
-1. Ensure `Cargo.toml` and `package.json` versions match.
-2. Push a tag like `v0.1.1`.
-3. `release-binaries` workflow uploads 5 platform binaries + checksum file to the GitHub Release.
-4. `npm-publish` workflow publishes `@wnsdud-jy/c2l` publicly.
+- Non-chess.com URLs are rejected.
+- Private/restricted games may fail to resolve.
+- If chess.com markup/API shape changes, extraction can break.
+- If lichess API behavior changes, final URL parsing can fail.
+- Output color in TUI depends on terminal capability.

@@ -1,7 +1,8 @@
 [package]
 name = "chess-to-lichess"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0"

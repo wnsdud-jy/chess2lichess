@@ -4,7 +4,7 @@ use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -22,7 +22,6 @@ use crate::{
 
 #[derive(Debug)]
 enum WorkerEvent {
-    Log(String),
     Done(Result<AnalysisResult, String>),
 }
 
@@ -105,7 +104,6 @@ pub async fn run_tui() -> Result<()> {
     loop {
         while let Ok(event) = rx.try_recv() {
             match event {
-                WorkerEvent::Log(line) => state.push_log(line),
                 WorkerEvent::Done(result) => {
                     state.processing = false;
                     match result {
@@ -162,18 +160,26 @@ pub async fn run_tui() -> Result<()> {
 
                         let txc = tx.clone();
                         tokio::spawn(async move {
-                            let tx_progress = txc.clone();
                             let tx_done = txc.clone();
-                            let mut progress = move |line: &str| {
-                                let _ = tx_progress.try_send(WorkerEvent::Log(line.to_string()));
+                            let options = app::RunOptions {
+                                copy: false,
+                                force_open: false,
+                                no_open: true,
+                                print_pgn: false,
+                                save_pgn: None,
+                                raw_url: false,
+                                json_output: false,
+                                csv_output: false,
+                                quiet: false,
+                                verbose: true,
                             };
 
-                            let output = app::resolve_with_progress(&url, &mut progress).await;
+                            let output = app::resolve_with_progress(&url, &options).await;
                             let _ = match output {
                                 Ok(v) => tx_done.send(WorkerEvent::Done(Ok(v))).await,
-                                Err(err) => tx_done
-                                    .send(WorkerEvent::Done(Err(err.to_string())))
-                                    .await,
+                                Err(err) => {
+                                    tx_done.send(WorkerEvent::Done(Err(err.to_string()))).await
+                                }
                             };
                         });
                     }
@@ -308,20 +314,23 @@ fn render(frame: &mut Frame, state: &TuiState) {
         .border_style(panel_style)
         .style(panel_style);
 
-    let header_widget = Paragraph::new(status_lines).block(header).wrap(Wrap { trim: true });
+    let header_widget = Paragraph::new(status_lines)
+        .block(header)
+        .wrap(Wrap { trim: true });
     frame.render_widget(header_widget, root[0]);
 
     let body = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(38),
-            Constraint::Percentage(62),
-        ])
+        .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
         .split(root[1]);
 
     let left = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(4), Constraint::Length(6), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(4),
+            Constraint::Length(6),
+            Constraint::Min(0),
+        ])
         .split(body[0]);
 
     let input_panel = Paragraph::new(format!("URL: {}", state.input))
@@ -333,7 +342,9 @@ fn render(frame: &mut Frame, state: &TuiState) {
                 .border_style(panel_style)
                 .title(Span::styled(
                     " URL Input ",
-                    Style::default().fg(Color::Rgb(129, 212, 250)).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Rgb(129, 212, 250))
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .title_bottom(Span::styled(
                     " Enter: run   c:copy   o:open   p:save   q:quit ",
@@ -346,9 +357,7 @@ fn render(frame: &mut Frame, state: &TuiState) {
     frame.render_widget(
         Paragraph::new(status_block_lines)
             .style(panel_style)
-            .block(
-                info
-            )
+            .block(info)
             .wrap(Wrap { trim: true }),
         left[1],
     );
@@ -359,10 +368,7 @@ fn render(frame: &mut Frame, state: &TuiState) {
         .map(|line| ListItem::new(Span::styled(line.clone(), panel_style)))
         .collect::<Vec<_>>();
     if messages.is_empty() {
-        messages.push(ListItem::new(Span::styled(
-            "No logs yet.",
-            muted_style,
-        )));
+        messages.push(ListItem::new(Span::styled("No logs yet.", muted_style)));
     }
 
     frame.render_widget(
@@ -372,14 +378,8 @@ fn render(frame: &mut Frame, state: &TuiState) {
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(panel_style)
-                    .title(Span::styled(
-                        " Logs ",
-                        success_style,
-                    ))
-                    .title_bottom(Span::styled(
-                        format!(" {} ", state.message),
-                        warn_style,
-                    )),
+                    .title(Span::styled(" Logs ", success_style))
+                    .title_bottom(Span::styled(format!(" {} ", state.message), warn_style)),
             )
             .style(panel_style),
         left[2],
@@ -387,10 +387,7 @@ fn render(frame: &mut Frame, state: &TuiState) {
 
     let right = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(12),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(12)])
         .split(body[1]);
 
     let pgn = if state.pgn_preview.is_empty() {
@@ -409,7 +406,9 @@ fn render(frame: &mut Frame, state: &TuiState) {
                     .border_style(panel_style)
                     .title(Span::styled(
                         " PGN Preview ",
-                        Style::default().fg(Color::Rgb(255, 183, 197)).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(Color::Rgb(255, 183, 197))
+                            .add_modifier(Modifier::BOLD),
                     )),
             )
             .wrap(Wrap { trim: true }),
@@ -426,7 +425,8 @@ fn render(frame: &mut Frame, state: &TuiState) {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(panel_style)
-                .title(Span::styled(" Hints ",
+                .title(Span::styled(
+                    " Hints ",
                     Style::default().fg(accent).add_modifier(Modifier::BOLD),
                 )),
         )
@@ -440,12 +440,14 @@ fn render(frame: &mut Frame, state: &TuiState) {
         muted_style
     };
     frame.render_widget(
-        Paragraph::new(state.message.clone()).style(footer_style).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(panel_style)
-                .title(Span::styled(" Message ", Style::default().fg(accent))),
-        ),
+        Paragraph::new(state.message.clone())
+            .style(footer_style)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(panel_style)
+                    .title(Span::styled(" Message ", Style::default().fg(accent))),
+            ),
         root[2],
     );
 }
