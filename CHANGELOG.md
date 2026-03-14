@@ -4,6 +4,12 @@
 
 - No changes yet.
 
+## [0.1.5] - 2026-03-14
+
+### Changed
+- Accepted `https://www.chess.com/game/{id}` inputs and normalized them to `https://www.chess.com/game/live/{id}` during CLI processing.
+- Updated README examples and usage notes to document both supported chess.com URL forms.
+
 ## [0.1.4] - 2026-03-08
 
 ### Added
@@ -25,4 +31,3 @@
 ## [0.1.3]
 
 - Initial baseline prior to 0.1.4 updates.
-

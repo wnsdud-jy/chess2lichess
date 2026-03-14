@@ -2,7 +2,7 @@
 
 # chess2lichess (`c2l`)
 
-**Turn a chess.com live game URL into a lichess analysis URL from the terminal.**
+**Turn a chess.com game URL into a lichess analysis URL from the terminal.**
 
 ![npm version](https://img.shields.io/npm/v/@wnsdud-jy/c2l?style=flat-square)
 ![node](https://img.shields.io/node/v/@wnsdud-jy/c2l?style=flat-square)
@@ -14,16 +14,16 @@
 
 ## Overview
 
-`c2l` is a small CLI that converts a `chess.com` live game URL into a `lichess.org` analysis link.
+`c2l` is a small CLI that converts a `chess.com` game URL into a `lichess.org` analysis link.
 
 It runs as a native binary (Rust implementation) while providing a simple Node entry point at the package level.
 
 > [!IMPORTANT]
-> `c2l` supports **chess.com live game URLs** only.
+> `c2l` supports `https://www.chess.com/game/<id>` and `https://www.chess.com/game/live/<id>` URLs.
 
 ## Key features
 
-- URL validation for supported `chess.com/game/live/...` links
+- URL validation for supported `chess.com/game/...` links
 - PGN extraction with fallback strategies
 - PGN import via `https://lichess.org/api/import`
 - Final analysis URL output and optional actions
@@ -96,6 +96,9 @@ Examples:
 
 ```bash
 # Process one URL
+c2l "https://www.chess.com/game/123456789"
+
+# Process one live URL
 c2l "https://www.chess.com/game/live/123456789"
 
 # Process multiple URLs at once

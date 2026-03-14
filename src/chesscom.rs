@@ -17,27 +17,42 @@ pub fn is_supported_chesscom_game_url(url: &Url) -> bool {
         && url.scheme().starts_with("http")
 }
 
-pub fn parse_game_id(url: &Url) -> Option<String> {
+fn parse_supported_game_path(url: &Url) -> Option<(String, bool)> {
     let segments: Vec<_> = url
         .path_segments()
         .map(|parts| parts.filter(|p| !p.is_empty()).collect())
         .unwrap_or_default();
 
-    if segments.len() < 3 {
+    if segments.len() < 2 || segments[0] != "game" {
         return None;
     }
 
-    if segments[0] != "game" || segments[1] != "live" {
-        return None;
-    }
-
-    let id = segments[2];
+    let (id, already_live) = match segments.as_slice() {
+        ["game", id] => (*id, false),
+        ["game", "live", id] => (*id, true),
+        _ => return None,
+    };
     let id_re = Regex::new(r"^[A-Za-z0-9-]+$").unwrap();
     if id_re.is_match(id) {
-        Some(id.to_string())
+        Some((id.to_string(), already_live))
     } else {
         None
     }
+}
+
+pub fn parse_game_id(url: &Url) -> Option<String> {
+    parse_supported_game_path(url).map(|(game_id, _)| game_id)
+}
+
+fn normalize_game_url(url: &Url) -> Option<Url> {
+    let (game_id, already_live) = parse_supported_game_path(url)?;
+    if already_live {
+        return Some(url.clone());
+    }
+
+    let mut normalized = url.clone();
+    normalized.set_path(&format!("/game/live/{game_id}"));
+    Some(normalized)
 }
 
 pub fn parse_chesscom_game_url(raw: &str) -> Result<ChessGameRef> {
@@ -46,10 +61,12 @@ pub fn parse_chesscom_game_url(raw: &str) -> Result<ChessGameRef> {
         return Err(anyhow!(C2lError::UnsupportedUrl(raw.to_string())));
     }
 
-    let game_id =
-        parse_game_id(&url).ok_or_else(|| anyhow!(C2lError::UnsupportedUrl(raw.to_string())))?;
+    let source_url = normalize_game_url(&url)
+        .ok_or_else(|| anyhow!(C2lError::UnsupportedUrl(raw.to_string())))?;
+    let game_id = parse_game_id(&source_url)
+        .ok_or_else(|| anyhow!(C2lError::UnsupportedUrl(raw.to_string())))?;
     Ok(ChessGameRef {
-        source_url: url,
+        source_url,
         game_id,
     })
 }
@@ -253,7 +270,7 @@ fn push_unique(vec: &mut Vec<String>, value: Option<&str>) {
 }
 
 fn game_url_matches_id(url: &str, game_id: &str) -> bool {
-    url.contains(&format!("/game/live/{game_id}"))
+    url.contains(&format!("/game/live/{game_id}")) || url.contains(&format!("/game/{game_id}"))
 }
 
 #[derive(Debug, Clone)]
@@ -481,6 +498,20 @@ mod tests {
     fn parse_supported_url() {
         let parsed = parse_chesscom_game_url("https://www.chess.com/game/live/123456789").unwrap();
         assert_eq!(parsed.game_id, "123456789");
+        assert_eq!(
+            parsed.source_url.as_str(),
+            "https://www.chess.com/game/live/123456789"
+        );
+    }
+
+    #[test]
+    fn parse_short_game_url_and_normalize_to_live() {
+        let parsed = parse_chesscom_game_url("https://www.chess.com/game/123456789").unwrap();
+        assert_eq!(parsed.game_id, "123456789");
+        assert_eq!(
+            parsed.source_url.as_str(),
+            "https://www.chess.com/game/live/123456789"
+        );
     }
 
     #[test]
