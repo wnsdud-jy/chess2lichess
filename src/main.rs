@@ -32,6 +32,59 @@ async fn main() -> Result<()> {
         verbose: cli.verbose,
     };
 
+    if app::should_prompt_for_npm_update(cli.mode.is_some(), &options) {
+        match app::is_npm_update_prompt_muted().await {
+            Ok(true) => {
+                if cli.verbose {
+                    eprintln!("Skipped npm update check because prompts are muted.");
+                }
+            }
+            Ok(false) => match app::detect_available_npm_update().await {
+                Ok(Some(update)) => match tui::prompt_npm_upgrade(&update)? {
+                    app::NpmUpdatePromptChoice::UpgradeNow => {
+                        println!(
+                            "Running upgrade: {}",
+                            app::npm_install_command_display(&update)
+                        );
+                        match app::install_npm_update(&update).await {
+                            Ok(()) => {
+                                println!(
+                                    "Upgrade finished. Continuing with c2l {}.",
+                                    env!("CARGO_PKG_VERSION")
+                                );
+                            }
+                            Err(error) => {
+                                eprintln!("Upgrade failed: {error}");
+                            }
+                        }
+                    }
+                    app::NpmUpdatePromptChoice::SkipOnce => {}
+                    app::NpmUpdatePromptChoice::MuteForSevenDays => {
+                        match app::mute_npm_update_prompt_for_days(7).await {
+                            Ok(_) => {
+                                println!("Muted npm update prompts for 7 days.");
+                            }
+                            Err(error) => {
+                                eprintln!("Failed to persist update mute: {error}");
+                            }
+                        }
+                    }
+                },
+                Ok(None) => {}
+                Err(error) => {
+                    if cli.verbose {
+                        eprintln!("Skipped npm update check: {error}");
+                    }
+                }
+            },
+            Err(error) => {
+                if cli.verbose {
+                    eprintln!("Skipped npm update mute check: {error}");
+                }
+            }
+        }
+    }
+
     match cli.mode {
         Some(Commands::Tui) => tui::run_tui().await,
         Some(Commands::Doctor { check_updates }) => app::run_doctor(check_updates).await,

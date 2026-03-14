@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 
 import { installedBinaryPath } from '../scripts/lib/paths.js';
 import { resolveTarget } from '../scripts/lib/platform.js';
+import { buildChildEnv } from '../scripts/lib/launch.js';
 
 let target;
 
@@ -23,7 +24,10 @@ if (!fs.existsSync(binPath)) {
   process.exit(1);
 }
 
-const child = spawn(binPath, process.argv.slice(2), { stdio: 'inherit' });
+const child = spawn(binPath, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: buildChildEnv(),
+});
 
 child.on('error', (error) => {
   console.error(`[c2l] failed to execute binary: ${error.message}`);

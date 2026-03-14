@@ -11,7 +11,7 @@ use ratatui::{
     prelude::*,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 use tokio::{fs, sync::mpsc};
 
@@ -19,6 +19,13 @@ use crate::{
     app::{self, AnalysisResult},
     browser,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UpgradeChoice {
+    UpgradeNow,
+    SkipOnce,
+    MuteForSevenDays,
+}
 
 #[derive(Debug)]
 enum WorkerEvent {
@@ -86,6 +93,221 @@ fn clamp_right(value: &str, max: usize) -> String {
     } else {
         value.chars().take(max).collect::<String>()
     }
+}
+
+pub fn prompt_npm_upgrade(update: &app::NpmUpdateInfo) -> Result<app::NpmUpdatePromptChoice> {
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+
+    let backend = ratatui::backend::CrosstermBackend::new(stdout);
+    let mut terminal = ratatui::Terminal::new(backend)?;
+    let mut selected = UpgradeChoice::UpgradeNow;
+
+    let result = (|| -> Result<app::NpmUpdatePromptChoice> {
+        loop {
+            terminal.draw(|frame| render_upgrade_prompt(frame, update, selected))?;
+
+            if !event::poll(Duration::from_millis(100))? {
+                continue;
+            }
+
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Left | KeyCode::Up | KeyCode::Char('h') | KeyCode::Char('k') => {
+                        selected = match selected {
+                            UpgradeChoice::UpgradeNow => UpgradeChoice::MuteForSevenDays,
+                            UpgradeChoice::SkipOnce => UpgradeChoice::UpgradeNow,
+                            UpgradeChoice::MuteForSevenDays => UpgradeChoice::SkipOnce,
+                        };
+                    }
+                    KeyCode::Right
+                    | KeyCode::Down
+                    | KeyCode::Tab
+                    | KeyCode::Char('l')
+                    | KeyCode::Char('j') => {
+                        selected = match selected {
+                            UpgradeChoice::UpgradeNow => UpgradeChoice::SkipOnce,
+                            UpgradeChoice::SkipOnce => UpgradeChoice::MuteForSevenDays,
+                            UpgradeChoice::MuteForSevenDays => UpgradeChoice::UpgradeNow,
+                        };
+                    }
+                    KeyCode::Char('y') => return Ok(app::NpmUpdatePromptChoice::UpgradeNow),
+                    KeyCode::Char('n') | KeyCode::Esc => {
+                        return Ok(app::NpmUpdatePromptChoice::SkipOnce);
+                    }
+                    KeyCode::Char('m') => {
+                        return Ok(app::NpmUpdatePromptChoice::MuteForSevenDays);
+                    }
+                    KeyCode::Enter => {
+                        return Ok(match selected {
+                            UpgradeChoice::UpgradeNow => app::NpmUpdatePromptChoice::UpgradeNow,
+                            UpgradeChoice::SkipOnce => app::NpmUpdatePromptChoice::SkipOnce,
+                            UpgradeChoice::MuteForSevenDays => {
+                                app::NpmUpdatePromptChoice::MuteForSevenDays
+                            }
+                        });
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    })();
+
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    result
+}
+
+fn render_upgrade_prompt(frame: &mut Frame, update: &app::NpmUpdateInfo, selected: UpgradeChoice) {
+    let (panel_style, muted_style, success_style, warn_style, accent) = style_palette();
+    let popup = centered_rect(78, 15, frame.area());
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Length(2),
+            Constraint::Length(2),
+            Constraint::Length(2),
+            Constraint::Length(3),
+        ])
+        .margin(1)
+        .split(popup);
+
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(panel_style)
+            .style(panel_style)
+            .title(Span::styled(
+                " npm update available ",
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            )),
+        popup,
+    );
+
+    frame.render_widget(
+        Paragraph::new("A newer npm package version is available for c2l.")
+            .style(panel_style)
+            .wrap(Wrap { trim: true }),
+        inner[0],
+    );
+    frame.render_widget(
+        Paragraph::new(format!(
+            "Current: {}    Latest: {}",
+            update.current_version, update.latest_version
+        ))
+        .style(success_style)
+        .wrap(Wrap { trim: true }),
+        inner[1],
+    );
+    frame.render_widget(
+        Paragraph::new(format!("Run: {}", app::npm_install_command_display(update)))
+            .style(muted_style)
+            .wrap(Wrap { trim: true }),
+        inner[2],
+    );
+    frame.render_widget(
+        Paragraph::new("Use ←/→ or y/n/m, then Enter.")
+            .style(warn_style)
+            .wrap(Wrap { trim: true }),
+        inner[3],
+    );
+
+    let buttons = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+        ])
+        .split(inner[4]);
+
+    let upgrade_style = if selected == UpgradeChoice::UpgradeNow {
+        Style::default()
+            .fg(Color::Black)
+            .bg(Color::Rgb(118, 255, 150))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        panel_style
+    };
+    let skip_style = if selected == UpgradeChoice::SkipOnce {
+        Style::default()
+            .fg(Color::Black)
+            .bg(Color::Rgb(255, 214, 102))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        panel_style
+    };
+    let mute_style = if selected == UpgradeChoice::MuteForSevenDays {
+        Style::default()
+            .fg(Color::Black)
+            .bg(Color::Rgb(255, 160, 122))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        panel_style
+    };
+
+    frame.render_widget(
+        Paragraph::new("Upgrade now")
+            .style(upgrade_style)
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(upgrade_style),
+            ),
+        buttons[0],
+    );
+    frame.render_widget(
+        Paragraph::new("Skip once")
+            .style(skip_style)
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(skip_style),
+            ),
+        buttons[1],
+    );
+    frame.render_widget(
+        Paragraph::new("Mute 7 days")
+            .style(mute_style)
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(mute_style),
+            ),
+        buttons[2],
+    );
+}
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Fill(1),
+            Constraint::Length(height.min(area.height.saturating_sub(2))),
+            Constraint::Fill(1),
+        ])
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Fill(1),
+            Constraint::Length(width.min(area.width.saturating_sub(2))),
+            Constraint::Fill(1),
+        ])
+        .split(vertical[1])[1]
 }
 
 pub async fn run_tui() -> Result<()> {
@@ -259,9 +481,9 @@ fn render(frame: &mut Frame, state: &TuiState) {
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(7),
             Constraint::Min(0),
-            Constraint::Length(1),
+            Constraint::Length(3),
         ])
         .split(frame.area());
 
@@ -292,11 +514,30 @@ fn render(frame: &mut Frame, state: &TuiState) {
         .as_ref()
         .map(|result| result.game_id.as_str())
         .unwrap_or("-");
+    let players = state
+        .last_result
+        .as_ref()
+        .and_then(|result| result.metadata.players_label())
+        .unwrap_or_else(|| "-".to_string());
+    let summary = state
+        .last_result
+        .as_ref()
+        .map(|result| {
+            let bits = result.metadata.summary_bits();
+            if bits.is_empty() {
+                "-".to_string()
+            } else {
+                bits.join(" | ")
+            }
+        })
+        .unwrap_or_else(|| "-".to_string());
 
     let status_lines = vec![
         Line::from(format!("Status: {processing}")),
         Line::from(format!("Final URL: {last_url}")),
         Line::from(format!("Game ID: {game_id}")),
+        Line::from(format!("Players: {}", clamp_right(&players, 40))),
+        Line::from(format!("Meta: {}", clamp_right(&summary, 40))),
     ];
     let status_block_lines = status_lines.clone();
 
@@ -328,7 +569,7 @@ fn render(frame: &mut Frame, state: &TuiState) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(4),
-            Constraint::Length(6),
+            Constraint::Length(8),
             Constraint::Min(0),
         ])
         .split(body[0]);

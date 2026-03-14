@@ -4,6 +4,17 @@
 
 - No changes yet.
 
+## [0.1.6] - 2026-03-14
+
+### Added
+- Added structured PGN metadata extraction across text, JSON, and CSV outputs.
+- Added bundled ECO `A00`-`E99` opening-name lookup for games that only provide ECO codes.
+- Added npm wrapper metadata forwarding plus an interactive npm self-update prompt with skip and 7-day mute options.
+
+### Changed
+- Expanded CLI and TUI status output with player ratings, result/date/move count metadata, and ECO-based opening names.
+- Removed the redundant `Acquired via: lichess API import` line from standard text output.
+
 ## [0.1.5] - 2026-03-14
 
 ### Changed

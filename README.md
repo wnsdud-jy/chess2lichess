@@ -26,11 +26,13 @@ It runs as a native binary (Rust implementation) while providing a simple Node e
 - URL validation for supported `chess.com/game/...` links
 - PGN extraction with fallback strategies
 - PGN import via `https://lichess.org/api/import`
+- Structured metadata extraction from PGN headers
 - Final analysis URL output and optional actions
   - copy PGN to clipboard
   - print PGN
   - save PGN to a file
   - auto open browser
+- Interactive npm self-update prompt for npm-installed `c2l` when a newer package version exists
 - Interactive URL input mode and TUI mode
 
 ## Quick start - npm
@@ -125,6 +127,12 @@ URL> quit
 
 > [!TIP]
 > For shell pipelines, pass `--raw-url` and chain output directly.
+
+> [!NOTE]
+> When `c2l` is launched from the npm package in an interactive terminal, it checks the npm registry for a newer package version before processing. Script-friendly modes such as `--json`, `--format csv`, `--raw-url`, and quiet output skip this prompt.
+> You can upgrade immediately, skip once, or mute the prompt for 7 days.
+
+Text output now also includes short metadata when PGN headers are available, such as players, result, date, move count, and opening.
 
 ## TUI mode
 
